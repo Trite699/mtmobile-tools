@@ -1,0 +1,52 @@
+name: Build tools
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install zlib (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
+      - name: Create output directory
+        run: mkdir -p build
+
+      - name: Build gmdTool
+        run: g++ -O2 -include cstring -o build/gmdtool gmdTool/main.cpp
+
+      - name: Build decryptArcTool
+        run: g++ -O2 -include cstring -o build/decryptarctool decryptArcTool/main.cpp -lz
+
+      - name: Build texTool
+        run: |
+          g++ -O2 -include cstring -I pvrtc -I soil \
+            -o build/textool \
+            texTool/main.cpp pvrtc/PVRTDecompress.cpp \
+            soil/stb_image_aug.c soil/image_DXT.c soil/image_helper.c \
+            -lz
+
+      - name: Smoke test binaries
+        run: |
+          ./build/gmdtool || true
+          ./build/textool || true
+          ./build/decryptarctool || true
+
+      - name: Upload built tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtmobile-tools-${{ runner.os }}
+          path: build/
